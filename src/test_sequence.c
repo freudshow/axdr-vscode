@@ -13,7 +13,6 @@ static int encode_sequence_field(AXDR_CODEC* codec, const void* field, int field
     if (!codec || !field) {
         return AXDR_ERROR_INVALID_VALUE;
     }
-
     switch (field_type) {
         case 0: // integer
             return axdr_encode_integer(codec, *(const int32_t*)field, INT32_MIN, INT32_MAX);
@@ -24,6 +23,30 @@ static int encode_sequence_field(AXDR_CODEC* codec, const void* field, int field
         default:
             return AXDR_ERROR_INVALID_TYPE;
     }
+}
+
+static int decode_sequence_field(AXDR_CODEC* codec, const void* field, int field_type) {
+    if (!codec || !field) {
+        return AXDR_ERROR_INVALID_VALUE;
+    }
+    switch (field_type) {
+        case 0: // integer
+            return axdr_decode_integer(codec, (int32_t*)field, INT32_MIN, INT32_MAX);
+        case 1: // boolean
+            return axdr_decode_boolean(codec, (bool*)field);
+        case 2: // string
+            return axdr_decode_visible_string(codec, (char*)field, 32);
+        default:
+            return AXDR_ERROR_INVALID_TYPE;
+    }
+}
+
+// 适配 SEQUENCE OF int32_t
+static int encode_int32_field(AXDR_CODEC* codec, const void* field) {
+    return axdr_encode_integer(codec, *(const int32_t*)field, INT32_MIN, INT32_MAX);
+}
+static int decode_int32_field(AXDR_CODEC* codec, void* field) {
+    return axdr_decode_integer(codec, (int32_t*)field, INT32_MIN, INT32_MAX);
 }
 
 void test_sequence() {
@@ -63,7 +86,7 @@ void test_sequence() {
     
     // 解码
     codec->position = 0;
-    result = axdr_decode_sequence_with_params(codec, decode_params, sizeof(decode_params)/sizeof(decode_params[0]), encode_sequence_field);
+    result = axdr_decode_sequence_with_params(codec, decode_params, sizeof(decode_params)/sizeof(decode_params[0]), decode_sequence_field);
     if (result != AXDR_SUCCESS) {
         printf("Failed to decode sequence: error %d\n", result);
         return;
@@ -98,13 +121,12 @@ void test_sequence_of() {
     };
     
     // 编码
-    int result = axdr_encode_sequence_of(codec, &test_sequence,
-                                       (AXDR_ENCODE_FIELD)axdr_encode_integer);
+    int result = axdr_encode_sequence_of(codec, &test_sequence, encode_int32_field);
     if (result != AXDR_SUCCESS) {
         printf("Failed to encode sequence of: error %d\n", result);
         return;
     }
-    
+
     // 准备解码
     int32_t decoded_array[10] = {0};
     AXDR_SEQUENCE_OF decoded_sequence = {
@@ -113,16 +135,15 @@ void test_sequence_of() {
         .count = 0,
         .maxCount = 10
     };
-    
+
     // 解码
     codec->position = 0;
-    result = axdr_decode_sequence_of(codec, &decoded_sequence,
-                                   (AXDR_DECODE_FIELD)axdr_decode_integer);
+    result = axdr_decode_sequence_of(codec, &decoded_sequence, decode_int32_field);
     if (result != AXDR_SUCCESS) {
         printf("Failed to decode sequence of: error %d\n", result);
         return;
     }
-    
+
     // 验证结果
     if (decoded_sequence.count != test_sequence.count ||
         memcmp(decoded_array, test_array, sizeof(int32_t) * test_sequence.count) != 0) {
@@ -130,6 +151,6 @@ void test_sequence_of() {
     } else {
         printf("SEQUENCE OF test passed\n");
     }
-    
+
     axdr_codec_cleanup(codec);
 }
