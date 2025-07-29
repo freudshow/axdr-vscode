@@ -58,6 +58,10 @@ int axdr_encode_octet_string(AXDR_CODEC* codec, const uint8_t* octets, size_t le
 int axdr_encode_visible_string(AXDR_CODEC* codec, const char* str, size_t max_length);
 int axdr_encode_generalized_time(AXDR_CODEC* codec, time_t time);
 int axdr_encode_null(AXDR_CODEC* codec);
+int axdr_encode_varint(AXDR_CODEC* codec, int32_t value);
+int axdr_encode_varoctet_string(AXDR_CODEC* codec, const uint8_t* octets, size_t length);
+int axdr_encode_varvisible_string(AXDR_CODEC* codec, const char* str);
+int axdr_encode_varbit_string(AXDR_CODEC* codec, const uint8_t* bits, size_t bit_length);
 
 // 解码函数声明
 int axdr_decode_integer(AXDR_CODEC* codec, int32_t* value, int32_t min, int32_t max);
@@ -69,6 +73,10 @@ int axdr_decode_octet_string(AXDR_CODEC* codec, uint8_t* octets, size_t* length)
 int axdr_decode_visible_string(AXDR_CODEC* codec, char* str, size_t max_length);
 int axdr_decode_generalized_time(AXDR_CODEC* codec, time_t* time);
 int axdr_decode_null(AXDR_CODEC* codec);
+int axdr_decode_varint(AXDR_CODEC* codec, int32_t* value);
+int axdr_decode_varoctet_string(AXDR_CODEC* codec, uint8_t* octets, size_t* length, size_t max_length);
+int axdr_decode_varvisible_string(AXDR_CODEC* codec, char* str, size_t* length, size_t max_length);
+int axdr_decode_varbit_string(AXDR_CODEC* codec, uint8_t* bits, size_t* bit_length, size_t max_bits);
 
 // SEQUENCE编解码函数类型定义
 typedef int (*AXDR_ENCODE_FIELD)(AXDR_CODEC* codec, const void* field);

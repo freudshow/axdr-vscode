@@ -279,3 +279,99 @@ int axdr_decode_null(AXDR_CODEC* codec) {
     // NULL类型不需要解码任何内容
     return AXDR_SUCCESS;
 }
+
+// 可变长度整型编码（BER风格，最小字节数）
+int axdr_encode_varint(AXDR_CODEC* codec, int32_t value) {
+    uint8_t buf[5];
+    int len = 0;
+    uint32_t uval = (uint32_t)value;
+    // ZigZag编码可选，这里直接用无符号
+    do {
+        buf[len] = uval & 0x7F;
+        uval >>= 7;
+        if (uval) buf[len] |= 0x80;
+        len++;
+    } while (uval && len < 5);
+    if (codec->position + len > codec->size) return AXDR_ERROR_BUFFER_OVERFLOW;
+    memcpy(codec->buffer + codec->position, buf, len);
+    codec->position += len;
+    return AXDR_SUCCESS;
+}
+
+// 可变长度整型解码
+int axdr_decode_varint(AXDR_CODEC* codec, int32_t* value) {
+    uint32_t result = 0;
+    int shift = 0;
+    int i = 0;
+    while (i < 5) {
+        if (codec->position >= codec->size) return AXDR_ERROR_BUFFER_OVERFLOW;
+        uint8_t byte = codec->buffer[codec->position++];
+        result |= (uint32_t)(byte & 0x7F) << shift;
+        if (!(byte & 0x80)) break;
+        shift += 7;
+        i++;
+    }
+    *value = (int32_t)result;
+    return AXDR_SUCCESS;
+}
+
+// 可变长度字节串编码
+int axdr_encode_varoctet_string(AXDR_CODEC* codec, const uint8_t* octets, size_t length) {
+    int res = axdr_encode_varint(codec, (int32_t)length);
+    if (res != AXDR_SUCCESS) return res;
+    if (codec->position + length > codec->size) return AXDR_ERROR_BUFFER_OVERFLOW;
+    memcpy(codec->buffer + codec->position, octets, length);
+    codec->position += length;
+    return AXDR_SUCCESS;
+}
+
+// 可变长度字节串解码
+int axdr_decode_varoctet_string(AXDR_CODEC* codec, uint8_t* octets, size_t* length, size_t max_length) {
+    int32_t len = 0;
+    int res = axdr_decode_varint(codec, &len);
+    if (res != AXDR_SUCCESS) return res;
+    if (len < 0 || (size_t)len > max_length) return AXDR_ERROR_CONSTRAINT;
+    if (codec->position + len > codec->size) return AXDR_ERROR_BUFFER_OVERFLOW;
+    memcpy(octets, codec->buffer + codec->position, len);
+    codec->position += len;
+    *length = (size_t)len;
+    return AXDR_SUCCESS;
+}
+
+// 可变长度可视串编码
+int axdr_encode_varvisible_string(AXDR_CODEC* codec, const char* str) {
+    size_t length = strlen(str);
+    return axdr_encode_varoctet_string(codec, (const uint8_t*)str, length);
+}
+
+// 可变长度可视串解码
+int axdr_decode_varvisible_string(AXDR_CODEC* codec, char* str, size_t* length, size_t max_length) {
+    int res = axdr_decode_varoctet_string(codec, (uint8_t*)str, length, max_length);
+    if (res == AXDR_SUCCESS) str[*length] = '\0';
+    return res;
+}
+
+// 可变长度位串编码
+int axdr_encode_varbit_string(AXDR_CODEC* codec, const uint8_t* bits, size_t bit_length) {
+    int res = axdr_encode_varint(codec, (int32_t)bit_length);
+    if (res != AXDR_SUCCESS) return res;
+    size_t byte_length = (bit_length + 7) / 8;
+    if (codec->position + byte_length > codec->size) return AXDR_ERROR_BUFFER_OVERFLOW;
+    memcpy(codec->buffer + codec->position, bits, byte_length);
+    codec->position += byte_length;
+    return AXDR_SUCCESS;
+}
+
+// 可变长度位串解码
+int axdr_decode_varbit_string(AXDR_CODEC* codec, uint8_t* bits, size_t* bit_length, size_t max_bits) {
+    int32_t nbits = 0;
+    int res = axdr_decode_varint(codec, &nbits);
+    if (res != AXDR_SUCCESS) return res;
+    if (nbits < 0 || (size_t)nbits > max_bits) return AXDR_ERROR_CONSTRAINT;
+    size_t byte_length = ((size_t)nbits + 7) / 8;
+    if (codec->position + byte_length > codec->size) return AXDR_ERROR_BUFFER_OVERFLOW;
+    memcpy(bits, codec->buffer + codec->position, byte_length);
+    codec->position += byte_length;
+    *bit_length = (size_t)nbits;
+    return AXDR_SUCCESS;
+}
